@@ -1,0 +1,15 @@
+# Зависимости
+node_modules/
+
+# Файл базы данных (создаётся автоматически при первом запуске)
+database.sqlite
+database.sqlite-journal
+database.sqlite-wal
+database.sqlite-shm
+
+# Логи
+npm-debug.log*
+*.log
+
+# Системный мусор
+.DS_Store

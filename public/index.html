@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <!-- Запрещаем кеширование скрипта — правки видны сразу после перезагрузки -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Крестики-нолики</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ══════════ ЭКРАН 1: МЕНЮ ══════════ -->
+  <section id="menu-screen" class="screen">
+    <h1 class="title">Крестики-нолики</h1>
+
+    <div class="card">
+      <h2>Новая игра</h2>
+      <p class="muted">Вы играете за X, компьютер — за O.</p>
+
+      <!-- Поле ввода имени игрока -->
+      <label class="label" for="player-name">Ваше имя</label>
+      <input
+        type="text"
+        id="player-name"
+        class="input"
+        placeholder="Введите имя (до 30 символов)"
+        maxlength="30"
+        autocomplete="off"
+        spellcheck="false">
+
+      <!-- Сообщение об ошибке ввода -->
+      <p id="name-error" class="error-text" hidden></p>
+
+      <button type="button" id="start-game" class="btn btn-primary">
+        Начать игру
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="history-head">
+        <h2>История игр</h2>
+        <button type="button" id="clear-history" class="btn btn-danger">
+          Очистить историю
+        </button>
+      </div>
+
+      <p id="history-empty" class="muted">История пока пуста.</p>
+
+      <div class="table-wrap">
+        <table id="history-table" hidden>
+          <thead>
+            <tr>
+              <th>Игрок</th>
+              <th>Результат</th>
+              <th>Дата</th>
+            </tr>
+          </thead>
+          <tbody id="history-body">
+            <!-- Строки добавляются скриптом через textContent (защита от XSS) -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ ЭКРАН 2: ИГРА ══════════ -->
+  <section id="game-screen" class="screen" hidden>
+    <h1 class="title">Крестики-нолики</h1>
+
+    <div class="card">
+      <p class="muted">Игрок: <span id="game-player" class="player-name"></span></p>
+
+      <!-- Индикатор текущего хода / итог партии -->
+      <p id="turn-indicator" class="turn">Ваш ход (X)</p>
+
+      <!-- Поле 3×3 -->
+      <div id="board" class="board">
+        <!-- 9 клеток создаются скриптом, чтобы не дублировать разметку -->
+      </div>
+
+      <button type="button" id="play-again" class="btn btn-primary" hidden>
+        Сыграть ещё
+      </button>
+    </div>
+  </section>
+
+  <!-- ══════════ Уведомления ══════════ -->
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="script.js"></script>
+</body>
+</html>

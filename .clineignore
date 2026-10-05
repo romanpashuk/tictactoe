@@ -1,0 +1,26 @@
+# Зависимости
+node_modules/
+**/node_modules/
+
+# База данных — НЕ читать!
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+
+# Сборка
+dist/
+build/
+out/
+
+# Lock-файлы
+package-lock.json
+yarn.lock
+
+# Логи и временные файлы
+*.log
+.DS_Store
+
+# Окружение
+.env
+.env.*

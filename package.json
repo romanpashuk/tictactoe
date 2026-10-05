@@ -1,0 +1,28 @@
+{
+  "name": "tictactoe",
+  "version": "1.0.0",
+  "description": "Крестики-нолики с сохранением результатов партий в SQLite",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node logic-test.js",
+    "test:css": "node css-check.js",
+    "test:e2e": "node e2e-game.js",
+    "test:db": "node db-schema-check.js",
+    "test:db-fail": "node corrupt-db-check.js",
+    "test:all": "node logic-test.js && node css-check.js && node db-schema-check.js && node corrupt-db-check.js && node e2e-game.js"
+  },
+  "keywords": [
+    "tictactoe",
+    "express",
+    "sqlite"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.7.0",
+    "express": "^4.21.2"
+  }
+}
