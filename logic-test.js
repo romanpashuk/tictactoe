@@ -37,7 +37,9 @@ function createEl() {
 const ELEMENT_IDS = [
   'menu-screen', 'game-screen', 'player-name', 'name-error', 'start-game',
   'clear-history', 'history-table', 'history-body', 'history-empty',
-  'game-player', 'turn-indicator', 'board', 'play-again', 'toast'
+  'game-player', 'turn-indicator', 'board', 'play-again', 'toast',
+  'mode-ai', 'mode-duo', 'mode-hint', 'player1-label',
+  'player2-field', 'player2-name'
 ];
 
 const els = {};
@@ -45,13 +47,21 @@ for (const id of ELEMENT_IDS) {
   els[id] = createEl();
 }
 
+// Тела всех POST-запросов клиента — чтобы проверять автосохранение результатов
+const postedBodies = [];
+
 const sandbox = {
   document: {
     getElementById: (id) => els[id] || createEl(),
     createElement: () => createEl()
   },
   window: { scrollTo() {}, confirm: () => true },
-  fetch: async () => ({ ok: true, status: 200, text: async () => '[]' }),
+  fetch: async (url, options = {}) => {
+    if (options.method === 'POST') {
+      postedBodies.push(options.body);
+    }
+    return { ok: true, status: 201, text: async () => '{}' };
+  },
   setTimeout: () => 0,
   clearTimeout: () => {},
   console
@@ -71,13 +81,15 @@ const EXPORTS = `
   validateName,
   formatDate,
   handleCellClick,
+  startGame,
   setBoard: (cells) => { board = cells.slice(); },
   getBoard: () => board.slice(),
-  getState: () => ({ isGameActive, currentTurn, isThinking, playerName }),
+  getState: () => ({ isGameActive, currentTurn, isThinking, gameMode, xPlayerName, oPlayerName }),
   setState: (patch) => {
     if ('isGameActive' in patch) isGameActive = patch.isGameActive;
     if ('currentTurn' in patch) currentTurn = patch.currentTurn;
     if ('isThinking' in patch) isThinking = patch.isThinking;
+    if ('gameMode' in patch) gameMode = patch.gameMode;
   }
 };
 `;
@@ -226,6 +238,76 @@ check('имя в 31 символ отклоняется', game.validateName() ==
 
 els['player-name'].value = '  Алиса  ';
 check('имя с пробелами по краям принимается', game.validateName() === true);
+
+// ── Режим «2 игрока» ─────────────────────────────────────────────────────
+
+console.log('\nРежим «2 игрока»:');
+
+els['mode-duo'].checked = true;
+els['player-name'].value = 'Алиса';
+els['player2-name'].value = '';
+
+check('duo: пустое имя второго игрока отклоняется', game.validateName() === false);
+
+els['player2-name'].value = 'B'.repeat(31);
+check('duo: имя второго игрока длиннее 30 символов отклоняется', game.validateName() === false);
+
+els['player2-name'].value = 'Борис';
+check('duo: два корректных имени принимаются', game.validateName() === true);
+
+// Запуск партии в режиме «2 игрока»
+game.startGame();
+check(
+  'duo: партия запущена в режиме duo',
+  game.getState().gameMode === 'duo' && game.getState().isGameActive === true
+);
+check(
+  'duo: оба имени сохранены в состоянии',
+  game.getState().xPlayerName === 'Алиса' && game.getState().oPlayerName === 'Борис'
+);
+check('duo: первым ходит X', game.getState().currentTurn === 'X');
+
+// Ходы двух людей: без задержки ИИ, поле остаётся активным
+game.handleCellClick(0);
+check(
+  'duo: после хода X очередь переходит к O',
+  game.getBoard()[0] === 'X' && game.getState().currentTurn === 'O'
+);
+check('duo: поле не блокируется на «раздумье» ИИ', game.getState().isThinking === false);
+
+game.handleCellClick(4);
+check(
+  'duo: после хода O очередь возвращается к X',
+  game.getBoard()[4] === 'O' && game.getState().currentTurn === 'X'
+);
+
+// Занятая клетка игнорируется в любом режиме
+game.handleCellClick(4);
+check('duo: клик по занятой клетке игнорируется', game.getBoard().filter(Boolean).length === 2);
+
+// Победа O сохраняется как result='lose' (победил игрок O) с именами обоих
+game.setBoard(['O', 'O', 'O', '', '', '', '', '', '']);
+check('duo: победа O определяется', game.evaluateGameState() === true);
+check('duo: результат партии сохранён одним POST', postedBodies.length === 1);
+
+if (postedBodies.length === 1) {
+  const body = JSON.parse(postedBodies[0]);
+  check(
+    'duo: в POST режим и оба имени',
+    body.mode === 'duo' && body.x_name === 'Алиса' && body.o_name === 'Борис'
+  );
+  check('duo: результат — победа O (lose)', body.result === 'lose');
+}
+
+// Защита MINOR-5: повторная оценка завершённой партии не шлёт второй POST
+game.evaluateGameState();
+check('повторная оценка не создаёт дубль POST (MINOR-5)', postedBodies.length === 1);
+
+// Возврат в режим ИИ не ломает валидацию одного имени
+els['mode-duo'].checked = false;
+els['player2-name'].value = '';
+check('после возврата в ИИ второй игрок не требуется', game.validateName() === true);
+
 
 // ── Форматирование даты ───────────────────────────────────────────────────
 

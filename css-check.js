@@ -74,7 +74,8 @@ while ((match = ruleRegex.exec(css)) !== null) {
 
 const REQUIRED_RULES = [
   '.board', '.cell', '.turn', '.toast', 'table', '.screen',
-  '.btn', '.input', '.result-win', '.result-lose', '.result-draw'
+  '.btn', '.input', '.result-win', '.result-lose', '.result-draw',
+  '.mode-select', '.mode-option'
 ];
 
 for (const rule of REQUIRED_RULES) {
@@ -100,6 +101,9 @@ const ELEMENT_CLASSES = [
   { id: 'start-game', cls: 'btn btn-primary' },
   { id: 'clear-history', cls: 'btn btn-danger' },
   { id: 'player-name', cls: 'input' },
+  { id: 'player2-name', cls: 'input' },
+  { id: 'mode-ai', cls: 'mode-option' },
+  { id: 'mode-duo', cls: 'mode-option' },
   { id: 'turn-indicator', cls: 'turn' },
   { id: 'board', cls: 'board' },
   { id: 'history-table', cls: 'table' }, // стилизован селектором элемента

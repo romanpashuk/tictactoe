@@ -248,7 +248,7 @@ function finishGame(result, winningLine) {
 | MINOR-2 | MINOR | `server.js` импортирует константы из слоя данных | `server.js`, `db.js` |
 | MINOR-3 | MINOR | `maxlength="30"` делает сообщение об ошибке недостижимым | `public/index.html` |
 | MINOR-4 | MINOR | Тесты зависят от внутренних переменных | `logic-test.js` |
-| MINOR-5 | MINOR | `finishGame()` без защиты от повторного вызова | `public/script.js` |
+| MINOR-5 | MINOR | `finishGame()` без защиты от повторного вызова — **исправлен 05.10.2026** (строка `if (!isGameActive) return;`) | `public/script.js` |
 | NTH-1 | NICE-TO-HAVE | Правило «1–30» продублировано в трёх слоях | `script.js`, `server.js`, `db.js` |
 | NTH-2 | NICE-TO-HAVE | `Content-Type` выставляется и для GET/DELETE | `public/script.js` |
 | NTH-3 | NICE-TO-HAVE | Нет возможности повторить неудачное сохранение | `public/script.js` |

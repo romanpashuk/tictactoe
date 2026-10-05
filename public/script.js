@@ -9,11 +9,18 @@
 
 // ── Константы игры ────────────────────────────────────────────────────────
 
-const PLAYER_MARK = 'X'; // Игрок всегда ходит крестиками
-const COMPUTER_MARK = 'O'; // Компьютер — ноликами
+const PLAYER_MARK = 'X'; // Первый игрок всегда ходит крестиками
+const COMPUTER_MARK = 'O'; // Компьютер / второй игрок — ноликами
 const NAME_MAX_LENGTH = 30; // Максимальная длина имени
 const AI_DELAY_MS = 400; // Задержка хода компьютера (визуальный отклик)
 const TOAST_MS = 3000; // Время показа уведомления
+
+// Режимы игры
+const MODE_AI = 'ai'; // Против компьютера
+const MODE_DUO = 'duo'; // Двое за одним устройством
+
+// Имя компьютера в истории (mode = 'ai')
+const COMPUTER_NAME = 'Компьютер';
 
 // Выигрышные комбинации: 8 троек индексов поля 0..8
 const WINNING_LINES = [
@@ -32,10 +39,16 @@ const WINNING_LINES = [
 /** Текущая доска: массив из 9 элементов ('' | 'X' | 'O') */
 let board = [];
 
-/** Имя игрока текущей партии */
-let playerName = '';
+/** Режим текущей партии: 'ai' или 'duo' */
+let gameMode = MODE_AI;
 
-/** Кто сейчас ходит: 'X' (игрок) или 'O' (компьютер) */
+/** Имя игрока X (в режиме 'ai' — человек, в 'duo' — Игрок 1) */
+let xPlayerName = '';
+
+/** Имя игрока O ('Компьютер' в режиме 'ai', человек в 'duo') */
+let oPlayerName = '';
+
+/** Кто сейчас ходит: 'X' или 'O' */
 let currentTurn = PLAYER_MARK;
 
 /** Идёт ли партия (false — игра окончена или ещё не начата) */
@@ -52,7 +65,13 @@ let toastTimer = null;
 
 const menuScreen = document.getElementById('menu-screen');
 const gameScreen = document.getElementById('game-screen');
+const modeAiRadio = document.getElementById('mode-ai');
+const modeDuoRadio = document.getElementById('mode-duo');
+const modeHint = document.getElementById('mode-hint');
+const player1Label = document.getElementById('player1-label');
+const player2Field = document.getElementById('player2-field');
 const nameInput = document.getElementById('player-name');
+const nameInput2 = document.getElementById('player2-name');
 const nameError = document.getElementById('name-error');
 const startGameBtn = document.getElementById('start-game');
 const clearHistoryBtn = document.getElementById('clear-history');
@@ -146,16 +165,28 @@ async function loadHistory() {
     for (const game of games) {
       const row = document.createElement('tr');
 
-      // Ячейка: имя игрока (textContent — безопасно, это текст, а не HTML)
+      // Ячейка: имена игроков (textContent — безопасно, это текст, а не HTML)
       const nameCell = document.createElement('td');
-      nameCell.textContent = game.player_name;
+      nameCell.textContent =
+        game.mode === MODE_DUO ? `${game.x_name} vs ${game.o_name}` : game.x_name;
       row.appendChild(nameCell);
 
       // Ячейка: результат (человекочитаемый текст + цвет)
       const resultCell = document.createElement('td');
-      const resultLabel = { win: 'Победа', lose: 'Поражение', draw: 'Ничья' };
-      resultCell.textContent = resultLabel[game.result] || game.result;
-      resultCell.className = `result-${game.result}`;
+      if (game.mode === MODE_DUO) {
+        // В режиме «2 игрока» «поражения» нет — выиграл один из двоих
+        const duoLabels = {
+          win: `Победил ${game.x_name} (X)`,
+          lose: `Победил ${game.o_name} (O)`,
+          draw: 'Ничья'
+        };
+        resultCell.textContent = duoLabels[game.result] || game.result;
+        resultCell.className = game.result === 'draw' ? 'result-draw' : 'result-win';
+      } else {
+        const resultLabel = { win: 'Победа', lose: 'Поражение', draw: 'Ничья' };
+        resultCell.textContent = resultLabel[game.result] || game.result;
+        resultCell.className = `result-${game.result}`;
+      }
       row.appendChild(resultCell);
 
       // Ячейка: дата в удобном виде
@@ -199,20 +230,47 @@ function formatDate(value) {
 // ── Валидация имени на клиенте (только UX; сервер валидирует повторно) ─────
 
 /**
- * Проверить имя игрока и показать ошибку при необходимости.
- * @returns {boolean} true, если имя корректно.
+ * Какой режим выбран в меню (по переключателю).
+ * @returns {boolean} true — режим «2 игрока».
+ */
+function isDuoMode() {
+  return Boolean(modeDuoRadio.checked);
+}
+
+/**
+ * Проверить имена активных игроков и показать ошибку при необходимости.
+ * В режиме «2 игрока» проверяются оба поля.
+ * @returns {boolean} true, если имена корректны.
  */
 function validateName() {
-  const value = nameInput.value.trim();
+  const isDuo = isDuoMode();
 
-  if (value.length === 0) {
-    showNameError('Введите имя игрока');
+  // 1. Первый игрок — валидируется в обоих режимах
+  const value1 = nameInput.value.trim();
+
+  if (value1.length === 0) {
+    showNameError(isDuo ? 'Введите имя игрока 1 (X)' : 'Введите имя игрока', nameInput);
     return false;
   }
 
-  if (value.length > NAME_MAX_LENGTH) {
-    showNameError(`Имя игрока: не более ${NAME_MAX_LENGTH} символов`);
+  if (value1.length > NAME_MAX_LENGTH) {
+    showNameError(`Имя игрока: не более ${NAME_MAX_LENGTH} символов`, nameInput);
     return false;
+  }
+
+  // 2. Второй игрок — только в режиме «2 игрока»
+  if (isDuo) {
+    const value2 = nameInput2.value.trim();
+
+    if (value2.length === 0) {
+      showNameError('Введите имя игрока 2 (O)', nameInput2);
+      return false;
+    }
+
+    if (value2.length > NAME_MAX_LENGTH) {
+      showNameError(`Имя игрока: не более ${NAME_MAX_LENGTH} символов`, nameInput2);
+      return false;
+    }
   }
 
   hideNameError();
@@ -222,17 +280,20 @@ function validateName() {
 /**
  * Показать ошибку под полем ввода.
  * @param {string} message Текст ошибки.
+ * @param {HTMLElement} [input=nameInput] Поле, к которому относится ошибка.
  */
-function showNameError(message) {
+function showNameError(message, input = nameInput) {
+  hideNameError();
   nameError.textContent = message;
   nameError.hidden = false;
-  nameInput.classList.add('input-error');
+  input.classList.add('input-error');
 }
 
-/** Скрыть ошибку под полем ввода. */
+/** Скрыть ошибку под полем ввода (с обеих полей). */
 function hideNameError() {
   nameError.hidden = true;
   nameInput.classList.remove('input-error');
+  nameInput2.classList.remove('input-error');
 }
 // ── Логика игры ───────────────────────────────────────────────────────────
 
@@ -268,8 +329,8 @@ function handleCellClick(index) {
     return;
   }
 
-  // Сейчас не ход игрока — игнорируем
-  if (currentTurn !== PLAYER_MARK) {
+  // В режиме с ИИ кликает только человек (X); в duo — любой, чей сейчас ход
+  if (gameMode === MODE_AI && currentTurn !== PLAYER_MARK) {
     return;
   }
 
@@ -278,20 +339,26 @@ function handleCellClick(index) {
     return;
   }
 
-  makeMove(index, PLAYER_MARK);
+  makeMove(index, currentTurn);
 
   // После хода проверяем, не закончилась ли партия
   if (evaluateGameState()) {
     return;
   }
 
-  // Ход переходит к компьютеру: блокируем поле на время "раздумья"
-  currentTurn = COMPUTER_MARK;
-  isThinking = true;
-  updateTurnIndicator();
-  lockBoard(true);
+  if (gameMode === MODE_AI) {
+    // Ход переходит к компьютеру: блокируем поле на время "раздумья"
+    currentTurn = COMPUTER_MARK;
+    isThinking = true;
+    updateTurnIndicator();
+    lockBoard(true);
 
-  aiTimer = setTimeout(computerMove, AI_DELAY_MS);
+    aiTimer = setTimeout(computerMove, AI_DELAY_MS);
+  } else {
+    // Режим «2 игрока»: ход переходит второму человеку, поле остаётся активным
+    currentTurn = currentTurn === PLAYER_MARK ? COMPUTER_MARK : PLAYER_MARK;
+    updateTurnIndicator();
+  }
 }
 
 /**
@@ -439,6 +506,10 @@ function getWinningLine() {
  * @param {Array<number>|null} winningLine Индексы выигрышных клеток.
  */
 function finishGame(result, winningLine) {
+  // Защита от повторного вызова: результат уже показан и сохранён
+  if (!isGameActive) {
+    return;
+  }
   isGameActive = false;
 
   // Отменяем запланированный ход компьютера, если он ещё в очереди
@@ -456,19 +527,35 @@ function finishGame(result, winningLine) {
   }
 
   // Показываем итог партии
-  const messages = {
-    win: 'Вы победили! 🎉',
-    lose: 'Вы проиграли 😔',
-    draw: 'Ничья 🤝'
-  };
-  const classes = {
-    win: 'turn turn-win',
-    lose: 'turn turn-lose',
-    draw: 'turn turn-draw'
-  };
+  if (gameMode === MODE_DUO) {
+    const messages = {
+      win: `Победил ${xPlayerName} (X)! 🎉`,
+      lose: `Победил ${oPlayerName} (O)! 🎉`,
+      draw: 'Ничья 🤝'
+    };
+    const classes = {
+      win: 'turn turn-win',
+      lose: 'turn turn-win',
+      draw: 'turn turn-draw'
+    };
 
-  turnIndicator.textContent = messages[result];
-  turnIndicator.className = classes[result];
+    turnIndicator.textContent = messages[result];
+    turnIndicator.className = classes[result];
+  } else {
+    const messages = {
+      win: 'Вы победили! 🎉',
+      lose: 'Вы проиграли 😔',
+      draw: 'Ничья 🤝'
+    };
+    const classes = {
+      win: 'turn turn-win',
+      lose: 'turn turn-lose',
+      draw: 'turn turn-draw'
+    };
+
+    turnIndicator.textContent = messages[result];
+    turnIndicator.className = classes[result];
+  }
 
   playAgainBtn.hidden = false;
 
@@ -478,13 +565,18 @@ function finishGame(result, winningLine) {
 
 /**
  * Отправить результат партии на сервер.
- * @param {'win'|'lose'|'draw'} result Результат.
+ * @param {'win'|'lose'|'draw'} result Результат (с точки зрения X).
  */
 async function saveGameResult(result) {
   try {
     await apiRequest('/api/games', {
       method: 'POST',
-      body: JSON.stringify({ player_name: playerName, result })
+      body: JSON.stringify({
+        mode: gameMode,
+        x_name: xPlayerName,
+        o_name: oPlayerName,
+        result
+      })
     });
     showToast('Результат сохранён');
   } catch (err) {
@@ -518,8 +610,14 @@ function lockBoard(locked) {
  */
 function updateTurnIndicator() {
   turnIndicator.className = 'turn';
-  turnIndicator.textContent =
-    currentTurn === PLAYER_MARK ? 'Ваш ход (X)' : 'Ход компьютера (O)…';
+
+  if (gameMode === MODE_DUO) {
+    const name = currentTurn === PLAYER_MARK ? xPlayerName : oPlayerName;
+    turnIndicator.textContent = `Ход: ${name} (${currentTurn})`;
+  } else {
+    turnIndicator.textContent =
+      currentTurn === PLAYER_MARK ? 'Ваш ход (X)' : 'Ход компьютера (O)…';
+  }
 }
 
 // ── Управление экранами ───────────────────────────────────────────────────
@@ -540,15 +638,37 @@ function showMenuScreen() {
 }
 
 /**
+ * Обновить меню под выбранный режим (подсказка, подписи, второе поле).
+ */
+function applyModeUI() {
+  const isDuo = isDuoMode();
+
+  player2Field.hidden = !isDuo;
+  player1Label.textContent = isDuo ? 'Игрок 1 (X)' : 'Ваше имя';
+  modeHint.textContent = isDuo
+    ? 'Двое за одним устройством: крестики и нолики ходят по очереди.'
+    : 'Вы играете за X, компьютер — за O.';
+
+  // При смене режима старая ошибка ввода может быть уже нерелевантна
+  hideNameError();
+}
+
+/**
  * Запустить новую партию.
  */
 function startGame() {
   if (!validateName()) {
-    nameInput.focus();
+    // Фокус на поле с ошибкой
+    const firstInvalid =
+      nameInput.value.trim().length === 0 ||
+      nameInput.value.trim().length > NAME_MAX_LENGTH;
+    (firstInvalid ? nameInput : nameInput2).focus();
     return;
   }
 
-  playerName = nameInput.value.trim();
+  gameMode = isDuoMode() ? MODE_DUO : MODE_AI;
+  xPlayerName = nameInput.value.trim();
+  oPlayerName = gameMode === MODE_DUO ? nameInput2.value.trim() : COMPUTER_NAME;
   board = Array(9).fill('');
   currentTurn = PLAYER_MARK;
   isGameActive = true;
@@ -561,7 +681,11 @@ function startGame() {
     cell.disabled = false;
   }
 
-  gamePlayerLabel.textContent = playerName; // textContent — безопасно для XSS
+  // textContent — безопасно для XSS
+  gamePlayerLabel.textContent =
+    gameMode === MODE_DUO
+      ? `${xPlayerName} (X) vs ${oPlayerName} (O)`
+      : `Игрок: ${xPlayerName} (X)`;
   updateTurnIndicator();
   playAgainBtn.hidden = true;
 
@@ -599,20 +723,29 @@ startGameBtn.addEventListener('click', startGame);
 clearHistoryBtn.addEventListener('click', clearHistory);
 playAgainBtn.addEventListener('click', showMenuScreen);
 
+// Смена режима — перестраиваем меню
+modeAiRadio.addEventListener('change', applyModeUI);
+modeDuoRadio.addEventListener('change', applyModeUI);
+
 // Валидация по мере ввода — убираем ошибку, как только имя исправлено
-nameInput.addEventListener('input', () => {
-  if (!nameError.hidden) {
-    hideNameError();
-  }
-});
+for (const input of [nameInput, nameInput2]) {
+  input.addEventListener('input', () => {
+    if (!nameError.hidden) {
+      hideNameError();
+    }
+  });
+}
 
 // Enter в поле имени запускает игру
-nameInput.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') {
-    startGame();
-  }
-});
+for (const input of [nameInput, nameInput2]) {
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      startGame();
+    }
+  });
+}
 
-// При загрузке: строим поле и подгружаем историю
+// При загрузке: настраиваем меню, строим поле и подгружаем историю
+applyModeUI();
 buildBoard();
 loadHistory();

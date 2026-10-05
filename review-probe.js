@@ -69,7 +69,7 @@ const EXPORTS = `
 ;globalThis.__g = {
   handleCellClick, startGame, evaluateGameState, findBestMove,
   getBoard: () => board.slice(),
-  getState: () => ({ isGameActive, currentTurn, isThinking, playerName }),
+  getState: () => ({ isGameActive, currentTurn, isThinking, gameMode, xPlayerName, oPlayerName }),
   setBoard: (c) => { board = c.slice(); },
   setState: (p) => {
     if ('isGameActive' in p) isGameActive = p.isGameActive;
@@ -148,7 +148,7 @@ async function main() {
   posts = [];
   els['player-name'].value = 'Кликер';
 
-  // Запускаем партию штатно, чтобы playerName был инициализирован
+  // Запускаем партию штатно, чтобы xPlayerName был инициализирован
   g.startGame();
 
   g.setBoard(['', '', '', '', '', '', '', '', '']);
@@ -162,7 +162,7 @@ async function main() {
   g.handleCellClick(2); // победа
   await sleep(300);
 
-  console.log('  playerName =', JSON.stringify(g.getState()));
+  console.log('  состояние партии =', JSON.stringify(g.getState()));
   console.log('  поле после 3 кликов =', JSON.stringify(g.getBoard()));
   console.log(`\n  Победная серия из 3 кликов: POST отправлено ${posts.length} (ожидается 1)`);
   if (posts.length) {

@@ -105,6 +105,44 @@ body {
   margin-bottom: 12px;
 }
 
+/* ---------- Выбор режима игры ---------- */
+.mode-select {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.mode-option {
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--bg-cell);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.mode-option:hover {
+  background: var(--bg-cell-hover);
+}
+
+.mode-option:has(input:checked) {
+  border-color: var(--accent);
+  background: rgba(79, 140, 255, 0.12);
+}
+
+.mode-option input {
+  accent-color: var(--accent);
+  margin: 0;
+}
+
 /* ---------- Кнопки ---------- */
 .btn {
   padding: 12px 18px;

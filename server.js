@@ -34,35 +34,74 @@ app.use(express.static(path.join(__dirname, 'public')));
 /**
  * Проверить и нормализовать тело POST /api/games.
  *
+ * Поддерживает два формата:
+ *  - новый: `{x_name, o_name, mode?, result}` — оба игрока явно;
+ *  - из ТЗ (promt.md): `{player_name, result}` — партия против компьютера
+ *    (player_name = игрок X, o_name подставляется «Компьютер»).
+ *
  * @param {any} body Тело запроса.
- * @returns {{ok: true, data: {player_name: string, result: string}} | {ok: false, error: string}}
+ * @returns {{ok: true, data: {x_name: string, o_name: string, mode: string, result: string}} | {ok: false, error: string}}
  */
 function validateGameBody(body) {
   // Тело должно быть объектом
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    return { ok: false, error: 'Ожидается JSON-объект с полями player_name и result' };
-  }
-
-  const { player_name: rawName, result } = body;
-
-  // 1. Имя обязательно и должно быть строкой
-  if (typeof rawName !== 'string') {
-    return { ok: false, error: 'Поле player_name обязательно и должно быть строкой' };
-  }
-
-  // 2. Обрезаем пробелы по краям и проверяем длину (1..30)
-  const playerName = rawName.trim();
-  if (playerName.length < NAME_MIN_LENGTH) {
-    return { ok: false, error: 'Имя игрока не может быть пустым' };
-  }
-  if (playerName.length > NAME_MAX_LENGTH) {
     return {
       ok: false,
-      error: `Имя игрока: от ${NAME_MIN_LENGTH} до ${NAME_MAX_LENGTH} символов`
+      error: 'Ожидается JSON-объект с полями x_name, o_name и result'
     };
   }
 
-  // 3. Результат — строго из разрешённого списка
+  const { x_name: rawX, o_name: rawO, player_name: legacyName, mode, result } = body;
+
+  // 1. Режим необязателен (по умолчанию — против компьютера), но строго из списка
+  const gameMode = mode === undefined ? 'ai' : mode;
+  if (!db.ALLOWED_MODES.includes(gameMode)) {
+    return {
+      ok: false,
+      error: `mode должен быть одним из: ${db.ALLOWED_MODES.join(', ')}`
+    };
+  }
+
+  // 2. Имя игрока X: новое поле x_name или legacy player_name из ТЗ
+  const rawName = rawX !== undefined ? rawX : legacyName;
+  if (typeof rawName !== 'string') {
+    return { ok: false, error: 'Поле x_name (или player_name) обязательно и должно быть строкой' };
+  }
+  const xName = rawName.trim();
+  if (xName.length < NAME_MIN_LENGTH) {
+    return { ok: false, error: 'Имя игрока X не может быть пустым' };
+  }
+  if (xName.length > NAME_MAX_LENGTH) {
+    return {
+      ok: false,
+      error: `Имя игрока X: от ${NAME_MIN_LENGTH} до ${NAME_MAX_LENGTH} символов`
+    };
+  }
+
+  // 3. Имя игрока O: обязательно в режиме «2 игрока»;
+  //    в режиме с ИИ по умолчанию «Компьютер»
+  let oName;
+  if (rawO !== undefined) {
+    if (typeof rawO !== 'string') {
+      return { ok: false, error: 'Поле o_name должно быть строкой' };
+    }
+    oName = rawO.trim();
+    if (oName.length < NAME_MIN_LENGTH) {
+      return { ok: false, error: 'Имя игрока O не может быть пустым' };
+    }
+    if (oName.length > NAME_MAX_LENGTH) {
+      return {
+        ok: false,
+        error: `Имя игрока O: от ${NAME_MIN_LENGTH} до ${NAME_MAX_LENGTH} символов`
+      };
+    }
+  } else if (gameMode === 'duo') {
+    return { ok: false, error: 'В режиме duo обязательно поле o_name (имя игрока 2)' };
+  } else {
+    oName = 'Компьютер';
+  }
+
+  // 4. Результат — строго из разрешённого списка
   if (!db.ALLOWED_RESULTS.includes(result)) {
     return {
       ok: false,
@@ -70,7 +109,18 @@ function validateGameBody(body) {
     };
   }
 
-  return { ok: true, data: { player_name: playerName, result } };
+  return {
+    ok: true,
+    data: { x_name: xName, o_name: oName, mode: gameMode, result }
+  };
+}
+
+/**
+ * Формат записи для API-ответа: новые поля + player_name из ТЗ (≡ x_name).
+ * @param {{id:number, x_name:string, o_name:string, mode:string, result:string, played_at:string}} row Запись из БД.
+ */
+function toApiGame(row) {
+  return { ...row, player_name: row.x_name };
 }
 
 // ── Роуты API ─────────────────────────────────────────────────────────────
@@ -82,7 +132,7 @@ function validateGameBody(body) {
 app.get('/api/games', (req, res) => {
   try {
     const games = db.listGames(db.HISTORY_LIMIT);
-    res.status(200).json(games);
+    res.status(200).json(games.map(toApiGame));
   } catch (err) {
     // Логируем реальную причину, клиенту отдаём нейтральное сообщение
     console.error('[GET /api/games] Ошибка при чтении истории:', err);
@@ -102,7 +152,7 @@ app.post('/api/games', (req, res) => {
 
   try {
     const created = db.createGame(validation.data);
-    return res.status(201).json(created);
+    return res.status(201).json(toApiGame(created));
   } catch (err) {
     console.error('[POST /api/games] Ошибка при сохранении партии:', err);
     return res.status(500).json({ error: 'Не удалось сохранить результат партии' });

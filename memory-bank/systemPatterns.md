@@ -30,21 +30,21 @@
 
 ```
 # Прод и документация (строки = объём кода)
-server.js            Express: статика, 3 роута, валидация, ошибки (171)
-db.js                Схема БД + ВЕСЬ SQL (147)
+server.js            Express: статика, 3 роута, валидация, ошибки (238)
+db.js                Схема БД + миграция v1→v2 + ВЕСЬ SQL (206)
 package.json         Зависимости + 6 npm-скриптов
 database.sqlite      БД, создаётся автоматически, в .gitignore
 
-public/index.html    Меню + игровое поле, 2 экрана (91)
-public/style.css     Тёмная тема, адаптивность <480px (325)
-public/script.js     Логика игры, ИИ, работа с API (617)
+public/index.html    Меню (2 режима) + игровое поле (116)
+public/style.css     Тёмная тема, выбор режима, адаптивность <480px (363)
+public/script.js     Логика игры, ИИ, два режима, работа с API (750)
 
 # Тесты
-css-check.js          29 — целостность CSS (скобки, селекторы, тёмная тема)
-logic-test.js        24 — игровая логика (vm, без сервера)
-e2e-game.js          18 — сквозной цикл (НУЖЕН сервер)
-db-schema-check.js   16 — схема и CHECK-ограничения
-corrupt-db-check.js  6 — отказоустойчивость БД
+css-check.js          34 — целостность CSS (скобки, селекторы, тёмная тема)
+logic-test.js        40 — игровая логика (vm, без сервера), вкл. «2 игрока»
+e2e-game.js          35 — сквозной цикл: ИИ + legacy ТЗ + duo (НУЖЕН сервер)
+db-schema-check.js   31 — схема v2, CHECK, миграция v1→v2
+corrupt-db-check.js   6 — отказоустойчивость БД
 review-probe.js      проба гипотез ревьюера (вне npm test)
 
 # Документация
@@ -72,13 +72,16 @@ ARCHITECTURE.md · TEST_REPORT.md · REVIEW.md · README.md
 знания об HTTP.
 
 **Доступ к БД** — `db.js` экспортирует 4 функции (`listGames`, `createGame`,
-`clearGames`, `getDb`) и 2 константы. Везде `db.prepare(...).run/get/all`.
-`getDb()` лениво инициализирует БД, если `initDb()` не вызывался — страховка
-от неправильного порядка инициализации.
+`clearGames`, `getDb`) и константы (`ALLOWED_RESULTS`, `ALLOWED_MODES` и др.).
+Везде `db.prepare(...).run/get/all`. `getDb()` лениво инициализирует БД, если
+`initDb()` не вызывался — страховка от неправильного порядка инициализации.
+`initDb()` содержит миграцию схемы v1→v2 (пересборка таблицы).
 
-**Фронтенд** — `script.js` разбит на 8 секций с рамками `── Название ──`.
-Состояние в модульных переменных: `board`, `playerName`, `currentTurn`,
-`isGameActive`, `isThinking`. Таймеры `aiTimer` и `toastTimer` отменяются явно.
+**Фронтенд** — `script.js` разбит на секции с рамками `── Название ──`.
+Состояние в модульных переменных: `board`, `gameMode` (`ai`|`duo`),
+`xPlayerName`, `oPlayerName`, `currentTurn`, `isGameActive`, `isThinking`.
+В duo-режиме `isThinking` не выставляется и задержки ИИ нет. Таймеры
+`aiTimer` и `toastTimer` отменяются явно.
 
 **Ошибки** — на клиенте центральная функция `apiRequest()`: ловит и сетевые
 сбои, и не-JSON ответы, и коды `!response.ok`, отдавая текст на русском.
@@ -92,8 +95,12 @@ ARCHITECTURE.md · TEST_REPORT.md · REVIEW.md · README.md
 клик по клетке → handleCellClick() → makeMove() → evaluateGameState()
   → finishGame() → saveGameResult() → apiRequest() → fetch POST /api/games
   → server.js: validateGameBody() → db.createGame() → prepared INSERT
-  → 201 {id, player_name, result, played_at} → showToast('Результат сохранён')
+  → 201 {id, x_name, o_name, mode, result, played_at, player_name}
+  → showToast('Результат сохранён')
 ```
+
+В режиме `duo` после хода компьютера нет: `handleCellClick()` просто
+переключает `currentTurn` на второго человека.
 
 **Чтение истории:**
 

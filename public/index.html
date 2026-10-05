@@ -15,10 +15,22 @@
 
     <div class="card">
       <h2>Новая игра</h2>
-      <p class="muted">Вы играете за X, компьютер — за O.</p>
+      <p class="muted" id="mode-hint">Вы играете за X, компьютер — за O.</p>
 
-      <!-- Поле ввода имени игрока -->
-      <label class="label" for="player-name">Ваше имя</label>
+      <!-- Выбор режима игры -->
+      <div class="mode-select" role="radiogroup" aria-label="Режим игры">
+        <label class="mode-option">
+          <input type="radio" name="game-mode" id="mode-ai" checked>
+          <span>Против компьютера</span>
+        </label>
+        <label class="mode-option">
+          <input type="radio" name="game-mode" id="mode-duo">
+          <span>2 игрока</span>
+        </label>
+      </div>
+
+      <!-- Поле ввода имени первого игрока -->
+      <label class="label" for="player-name" id="player1-label">Ваше имя</label>
       <input
         type="text"
         id="player-name"
@@ -27,6 +39,19 @@
         maxlength="30"
         autocomplete="off"
         spellcheck="false">
+
+      <!-- Поле второго игрока (видно только в режиме «2 игрока») -->
+      <div id="player2-field" hidden>
+        <label class="label" for="player2-name">Игрок 2 (O)</label>
+        <input
+          type="text"
+          id="player2-name"
+          class="input"
+          placeholder="Введите имя (до 30 символов)"
+          maxlength="30"
+          autocomplete="off"
+          spellcheck="false">
+      </div>
 
       <!-- Сообщение об ошибке ввода -->
       <p id="name-error" class="error-text" hidden></p>
@@ -50,7 +75,7 @@
         <table id="history-table" hidden>
           <thead>
             <tr>
-              <th>Игрок</th>
+              <th>Игроки</th>
               <th>Результат</th>
               <th>Дата</th>
             </tr>
@@ -68,7 +93,7 @@
     <h1 class="title">Крестики-нолики</h1>
 
     <div class="card">
-      <p class="muted">Игрок: <span id="game-player" class="player-name"></span></p>
+      <p class="muted"><span id="game-player" class="player-name"></span></p>
 
       <!-- Индикатор текущего хода / итог партии -->
       <p id="turn-indicator" class="turn">Ваш ход (X)</p>

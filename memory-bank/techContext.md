@@ -34,12 +34,12 @@ npm start          # http://localhost:3000
 | Скрипт | Команда | Что делает |
 |---|---|---|
 | `npm start` | `node server.js` | Запуск сервера |
-| `npm test` | `node logic-test.js` | 24 теста игровой логики |
-| `npm run test:css` | `node css-check.js` | 29 проверок целостности CSS |
-| `npm run test:db` | `node db-schema-check.js` | 16 тестов схемы БД |
+| `npm test` | `node logic-test.js` | 40 тестов игровой логики (вкл. режим «2 игрока») |
+| `npm run test:css` | `node css-check.js` | 34 проверки целостности CSS |
+| `npm run test:db` | `node db-schema-check.js` | 31 тест схемы БД и миграции v1→v2 |
 | `npm run test:db-fail` | `node corrupt-db-check.js` | 6 тестов отказоустойчивости |
-| `npm run test:e2e` | `node e2e-game.js` | 18 сквозных тестов (**нужен сервер**) |
-| `npm run test:all` | все 5 наборов | **93 проверки** |
+| `npm run test:e2e` | `node e2e-game.js` | 35 сквозных тестов (**нужен сервер**) |
+| `npm run test:all` | все 5 наборов | **146 проверок** |
 
 ## Переменные окружения
 
@@ -51,14 +51,20 @@ npm start          # http://localhost:3000
 
 ## Схема БД
 
-Таблица `games`:
+Таблица `games` (**схема v2**, мигрирует автоматически со старых БД):
 
 | Поле | Тип | Ограничения |
 |---|---|---|
 | `id` | INTEGER | `PRIMARY KEY AUTOINCREMENT` |
-| `player_name` | TEXT | `NOT NULL`, `CHECK(length(trim(...)) BETWEEN 1 AND 30)` |
-| `result` | TEXT | `NOT NULL`, `CHECK(result IN ('win','lose','draw'))` |
+| `x_name` | TEXT | `NOT NULL`, `CHECK(length(trim(...)) BETWEEN 1 AND 30)` |
+| `o_name` | TEXT | `NOT NULL`, `CHECK(length(trim(...)) BETWEEN 1 AND 30)` |
+| `mode` | TEXT | `NOT NULL DEFAULT 'ai'`, `CHECK(mode IN ('ai','duo'))` |
+| `result` | TEXT | `NOT NULL`, `CHECK(result IN ('win','lose','draw'))` — от лица X |
 | `played_at` | DATETIME | `NOT NULL DEFAULT CURRENT_TIMESTAMP` (UTC) |
+
+Миграция v1→v2: пересборка таблицы в `initDb()` (SQLite не меняет CHECK через
+`ALTER`); `player_name` → `x_name`, ИИ-партии получают `o_name='Компьютер'`,
+`mode='ai'`; id и даты сохраняются. Идемпотентна.
 
 Индекс: `idx_played_at ON games(played_at DESC)`.
 Запрос истории: `ORDER BY played_at DESC, id DESC LIMIT 10`.
@@ -68,10 +74,13 @@ npm start          # http://localhost:3000
 | Метод | Путь | Тело | Успех | Ошибки |
 |---|---|---|---|---|
 | GET | `/api/games` | — | `200` массив ≤10 записей | `500` |
-| POST | `/api/games` | `{player_name, result}` | `201` созданная запись | `400`, `500` |
+| POST | `/api/games` | `{x_name, o_name, mode?, result}` или legacy `{player_name, result}` | `201` созданная запись | `400`, `500` |
 | DELETE | `/api/games` | — | `200 {deleted:N}` | `500` |
 
-Неизвестный путь `/api/*` → `404`. Тело ошибки: `{ "error": "текст" }`.
+Ответы записей содержат `x_name, o_name, mode, result, played_at` + legacy
+`player_name` (≡ `x_name`, совместимость с ТЗ). В режиме `ai` без `o_name`
+сервер подставляет `Компьютер`. Неизвестный путь `/api/*` → `404`.
+Тело ошибки: `{ "error": "текст" }`.
 
 ## Тонкости окружения
 
